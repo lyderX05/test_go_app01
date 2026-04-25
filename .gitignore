@@ -1,0 +1,28 @@
+.codex
+AGENTS.md
+# Binaries and build output
+bin/
+build/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+test_go_app01
+
+# Test and coverage output
+*.test
+coverage.out
+coverage.html
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Local environment and editor files
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/
