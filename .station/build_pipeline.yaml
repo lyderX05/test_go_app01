@@ -1,0 +1,119 @@
+name: go-service-build
+description: Test build for the example Go service.
+defaults:
+  worker_selector:
+    worker_roles: [linux-amd64, golang]
+    environment_ids: [environment-build-pool]
+  timeout: 30m
+  fail_fast: true
+
+variables:
+  GO_VERSION: "1.23.4"
+  CGO_ENABLED: "0"
+  COMMIT_SHA: "${pipeline.git_commit}"
+  BUILD_NUMBER: "${pipeline.run_number}"
+
+stages:
+  - name: lint-test
+    jobs:
+      - name: lint
+        worker_selector:
+          worker_roles: [linux-amd64, golang]
+        steps:
+          - name: checkout
+            action_type: GitCheckout
+            parameters:
+              ref: "${pipeline.git_ref}"
+              fetch_depth: 1
+          - name: go-vet
+            action_type: RunScript
+            parameters:
+              shell: bash
+              script: |
+                set -euo pipefail
+                go version
+                go vet ./...
+          - name: golangci
+            action_type: RunScript
+            parameters:
+              shell: bash
+              script: |
+                go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+                golangci-lint run --timeout 5m
+
+      - name: test
+        worker_selector:
+          worker_roles: [linux-amd64, golang]
+          worker_tags: [fast-disk]
+        steps:
+          - name: checkout
+            action_type: GitCheckout
+            parameters:
+              ref: "${pipeline.git_ref}"
+          - name: unit-tests
+            action_type: RunScript
+            parameters:
+              shell: bash
+              script: |
+                set -euo pipefail
+                go test ./... -race -count=1 -coverprofile=coverage.out
+                go tool cover -func=coverage.out | tail -1
+          - name: archive-coverage
+            action_type: ArchiveArtifact
+            parameters:
+              path: coverage.out
+              name: coverage-${pipeline.run_number}
+
+  - name: build
+    depends_on: [lint-test]
+    jobs:
+      - name: compile
+        worker_selector:
+          worker_roles: [linux-amd64, golang]
+        steps:
+          - name: checkout
+            action_type: GitCheckout
+            parameters:
+              ref: "${pipeline.git_ref}"
+          - name: go-build
+            action_type: RunScript
+            parameters:
+              shell: bash
+              env:
+                CGO_ENABLED: "${variables.CGO_ENABLED}"
+              script: |
+                set -euo pipefail
+                mkdir -p dist
+                go build -trimpath \
+                  -ldflags "-s -w -X main.commit=${COMMIT_SHA} -X main.buildNumber=${BUILD_NUMBER}" \
+                  -o dist/svc ./cmd/svc
+          - name: package
+            action_type: PackageBuild
+            parameters:
+              name: svc
+              version: "${pipeline.run_number}"
+              source_path: dist/
+              metadata:
+                commit: "${COMMIT_SHA}"
+                go_version: "${variables.GO_VERSION}"
+
+  - name: publish
+    depends_on: [build]
+    jobs:
+      - name: push-feed
+        steps:
+          - name: upload
+            action_type: PublishPackage
+            parameters:
+              feed_id: feed-1
+              package_name: svc
+              package_version: "${pipeline.run_number}"
+              source_artifact: svc-${pipeline.run_number}
+
+on_success:
+  trigger_deploy: true
+  publish_status: github
+
+on_failure:
+  notify_channel_ids: [feed-3]
+  retry: { count: 0 }
