@@ -1,0 +1,40 @@
+version:     "1.0"                  # schema version
+name:        "API build"            # display name; unique per project
+description: "Builds, tests, pushes the api image"
+
+trigger:                            # when does this pipeline run? See §2
+  push:
+    branches: ["main", "release/*"]
+
+parameters:                         # runtime form inputs — see §3
+  - name: skipTests
+    type: boolean
+    default: false
+
+variables:                          # static/secret values — see §4
+  - group: demo-sets
+  - name: BUILD_FLAG
+    value: "-trimpath"
+  - name: CGO_ENABLED
+    value: "0"
+
+
+stages:                             # the three-level tree — see §6
+  - id: build
+    jobs:
+      - id: compile
+        steps:
+          - name: checkout
+            type: checkout
+            inputs:
+              ref: ""
+          - name: running script
+            type: script
+            inputs:
+              shell: bash
+              env:
+                CGO_ENABLED: "${variables.CGO_ENABLED}"
+              script: |
+                echo "Compiling the project..."
+                echo "CGO_ENABLED=${CGO_ENABLED}"
+                echo "BUILD_FLAG=${BUILD_FLAG}"
