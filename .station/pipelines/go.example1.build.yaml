@@ -1,0 +1,64 @@
+version:     "1.0"                  # schema version
+name:        "go example1 build"    # display name; unique per project
+description: "Builds, tests, pushes the go/example1 image"
+
+trigger:                            # when does this pipeline run? See §2
+  push:
+    branches: ["main", "release/*"]
+    paths: ["go/example1/**"]
+
+parameters:                         # runtime form inputs — see §3
+  - name: skipTests
+    type: boolean
+    default: false
+
+variables:                          # static/secret values — see §4
+  - group: demo-sets
+  - name: BUILD_FLAG
+    value: "-trimpath"
+  - name: CGO_ENABLED
+    value: "0"
+
+build:
+  name: station-ci
+  stages:
+    - name: Build                       # REQUIRED, unique per pipeline
+      enabled: true                     # default true
+      branch_filter: "main, release/*"  # optional glob allow-list
+      path_ignore: ["docs/**", "*.md"]  # optional; skip when all changes match
+      job_parallelism: 2                # 0 = unlimited
+      timeout: 60m                      # stage-wide cap (default 60m)
+      on_failure: stop                  # stop | continue | manualGate
+      depends_on: []                    # stage names that must finish first
+      condition: ""                     # optional gate expression
+      jobs:
+        - name: Compile                 # REQUIRED, unique within stage
+          enabled: true
+          depends_on: []                # other job names in THIS stage only
+          timeout: 30m
+          retries: 0
+          continue_on_error: false
+          condition: ""
+          runs_on:                      # REQUIRED — build is worker-only
+            target: worker              # only 'worker' is valid for build
+            worker: { pool: "linux-builders", roles: ["build"] }
+            host: host                  # host | container
+          strategy:                     # default { type: single }
+            type: single                # single | matrix | fanOut
+          env:
+            GOFLAGS: "-mod=readonly"
+          steps:
+            - name: Checkout            # REQUIRED
+              type: checkout            # REQUIRED (dispatch key)
+            - name: Compile
+              type: script
+              working_directory: go/example1
+              timeout: 20m
+              continue_on_error: false
+              condition: "succeeded()"
+              env: { CGO_ENABLED: "0" }
+              script:                   # for type: script (see § Script)
+                source: inline          # inline | package | repository
+                syntax: Bash
+                body: |
+                  go build -trimpath -o bin/example1 ./.

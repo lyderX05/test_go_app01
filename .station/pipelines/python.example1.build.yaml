@@ -1,0 +1,81 @@
+version:     "1.0"                     # schema version
+name:        "python example1 build"   # display name; unique per project
+description: "Builds, tests, pushes the python/example1 FastAPI image"
+
+trigger:                               # when does this pipeline run? See §2
+  push:
+    branches: ["main", "release/*"]
+    paths: ["python/example1/**"]
+
+parameters:                            # runtime form inputs — see §3
+  - name: skipTests
+    type: boolean
+    default: false
+  - name: pythonVersion
+    type: string
+    default: "3.12"
+
+variables:                             # static/secret values — see §4
+  - group: demo-sets
+  - name: PIP_NO_CACHE_DIR
+    value: "1"
+  - name: PIP_DISABLE_PIP_VERSION_CHECK
+    value: "1"
+
+build:
+  name: station-ci
+  stages:
+    - name: Build                       # REQUIRED, unique per pipeline
+      enabled: true                     # default true
+      branch_filter: "main, release/*"  # optional glob allow-list
+      path_ignore: ["docs/**", "*.md"]  # optional; skip when all changes match
+      job_parallelism: 2                # 0 = unlimited
+      timeout: 60m                      # stage-wide cap (default 60m)
+      on_failure: stop                  # stop | continue | manualGate
+      depends_on: []                    # stage names that must finish first
+      condition: ""                     # optional gate expression
+      jobs:
+        - name: Compile                 # REQUIRED, unique within stage
+          enabled: true
+          depends_on: []                # other job names in THIS stage only
+          timeout: 30m
+          retries: 0
+          continue_on_error: false
+          condition: ""
+          runs_on:                      # REQUIRED — build is worker-only
+            target: worker              # only 'worker' is valid for build
+            worker: { pool: "linux-builders", roles: ["build"] }
+            host: host                  # host | container
+          strategy:                     # default { type: single }
+            type: single                # single | matrix | fanOut
+          env:
+            PYTHONDONTWRITEBYTECODE: "1"
+          steps:
+            - name: Checkout            # REQUIRED
+              type: checkout            # REQUIRED (dispatch key)
+            - name: Install
+              type: script
+              working_directory: python/example1
+              timeout: 15m
+              continue_on_error: false
+              condition: "succeeded()"
+              script:
+                source: inline
+                syntax: Bash
+                body: |
+                  python -m venv .venv
+                  . .venv/bin/activate
+                  pip install -r requirements.txt
+            - name: Compile
+              type: script
+              working_directory: python/example1
+              timeout: 20m
+              continue_on_error: false
+              condition: "succeeded()"
+              env: { PIP_NO_CACHE_DIR: "1" }
+              script:                   # for type: script (see § Script)
+                source: inline          # inline | package | repository
+                syntax: Bash
+                body: |
+                  . .venv/bin/activate
+                  python -m compileall -q .

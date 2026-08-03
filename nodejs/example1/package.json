@@ -1,0 +1,13 @@
+{
+  "name": "example1",
+  "version": "1.0.0",
+  "description": "Example1 Node.js Express API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"no tests\" && exit 0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
