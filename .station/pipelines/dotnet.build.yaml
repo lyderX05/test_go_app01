@@ -61,3 +61,38 @@ build:
                 syntax: Bash
                 body: |
                   go build -o bin/station ./.
+
+    - name: Tests                       # REQUIRED, unique per pipeline
+      enabled: true                     # default true
+      branch_filter: "main, release/*"  # optional glob allow-list
+      job_parallelism: 2                # 0 = unlimited
+      timeout: 60m                      # stage-wide cap (default 60m)
+      on_failure: stop                  # stop | continue | manualGate
+      depends_on: []                    # stage names that must finish first
+      condition: ""                     # optional gate expression
+      jobs:
+        - name: Testing Job                 # REQUIRED, unique within stage
+          continue_on_error: false
+          condition: ""
+          runs_on:                      # REQUIRED — build is worker-only
+            target: worker              # only 'worker' is valid for build
+            worker: { pool: "linux-builders", roles: ["build"] }
+            host: host                  # host | container
+          strategy:                     # default { type: single }
+            type: single                # single | matrix | fanOut
+          env:
+            GOFLAGS: "-mod=readonly"
+          steps:
+            - name: Compile
+              type: script
+              working_directory: api
+              timeout: 20m
+              continue_on_error: false
+              condition: "succeeded()"
+              env: { CGO_ENABLED: "0" }
+              script:                   # for type: script (see § Script)
+                source: inline          # inline | package | repository
+                syntax: Bash
+                body: |
+                  go test -o bin/station ./.
+
