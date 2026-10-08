@@ -1,4 +1,4 @@
-version:     "1.0"                  # schema version
+version: "1.0"
 
 parameters:                      
   - name: skipTests
@@ -19,11 +19,8 @@ stages:
       value: value_2
     jobs:
       - name: Compile
-        pool:
-          name: linux-pool
-          filter: "eq(worker.os, 'alpine')"
-        strategy:                     # default { type: single }
-          type: single                # single | matrix | fanOut
+        strategy:            
+          type: single
         variables:
         - name: GOFLAGS
           value: "-mod=readonly"
@@ -44,15 +41,14 @@ stages:
               scriptBodys: |
                 go build -o bin/station ./.
 
-  - name: Tests                       # REQUIRED, unique per pipeline
-    enabled: true                     # default true
+  - name: Tests App
     branchesFilters: 
-      branches: main, release/*"  # optional glob allow-list
+      branches: main, release/*"
     jobParallelism: 2
-    timeout: 60m                      # stage-wide cap (default 60m)
-    dependsOn: ["build"]                    # stage names that must finish first                 # optional gate expression
+    timeout: 60m
+    dependsOn: ["build"]
     jobs:
-      - name: Testing Job                 # REQUIRED, unique within stage
+      - name: Testing Job
         continue_on_error: false                # host | container
         strategy:                     # default { type: single }
           type: single                # single | matrix | fanOut
