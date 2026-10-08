@@ -11,3 +11,17 @@ step "run-a-script" {
         worker_pool = "hosted-windows"
     }
 }
+
+step "run-a-script-22" {
+    name = "Run a Script 22"
+
+    action {
+        action_type = "Octopus.Script"
+        properties = {
+            Octopus.Action.Script.ScriptBody = "wrfefwefwefwe"
+            Octopus.Action.Script.ScriptSource = "Inline"
+            Octopus.Action.Script.Syntax = "PowerShell"
+        }
+        worker_pool = "hosted-windows"
+    }
+}
